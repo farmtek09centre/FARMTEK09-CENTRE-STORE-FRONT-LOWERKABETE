@@ -241,12 +241,6 @@ h1, h2, h3 {
 .card-price.on-request { font-size: 0.82rem; font-weight: 600; color: var(--ink-500); font-style: italic; }
 .card-cta { margin-top: 0.35rem; width: 100%; padding: 0.6rem 0.75rem; font-size: 0.82rem; }
 
-.qty-stepper { display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; margin-top: 0.15rem; }
-.qty-btn { height: 34px; border: 0; background: var(--mist-50); color: var(--forest-950); font-size: 1.05rem; font-weight: 800; cursor: pointer; }
-.qty-btn:hover { background: var(--line); }
-.qty-btn:active { background: var(--amber-100); }
-.qty-value { text-align: center; font-weight: 700; color: var(--ink-900); font-size: 0.9rem; }
-
 /* =========================================================
    Empty state
    ========================================================= */
@@ -278,50 +272,3 @@ h1, h2, h3 {
   100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0), var(--shadow-pop); }
 }
 @media (prefers-reduced-motion: reduce) { .floating-whatsapp { animation: none; } }
-
-.load-error {
-  grid-column: 1 / -1;
-  margin: 0;
-  padding: 2rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--paper);
-  color: var(--ink-500);
-  text-align: center;
-}
-
-/* M-PESA payment form */
-.pay-now-btn { width: 100%; margin-top: 0.75rem; }
-.mpesa-panel {
-  margin-top: 0.85rem;
-  padding: 1rem;
-  border: 1px solid rgba(18, 18, 18, 0.12);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.72);
-}
-.mpesa-panel[hidden] { display: none; }
-.mpesa-panel label {
-  display: block;
-  margin: 0.75rem 0 0.35rem;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-.mpesa-panel label:first-child { margin-top: 0; }
-.mpesa-panel input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid rgba(18, 18, 18, 0.16);
-  border-radius: 10px;
-  padding: 0.75rem 0.8rem;
-  font: inherit;
-  background: #fff;
-}
-.mpesa-panel input:focus {
-  outline: 2px solid rgba(0, 128, 0, 0.25);
-  border-color: rgba(0, 128, 0, 0.5);
-}
-.mpesa-panel .btn { width: 100%; margin-top: 0.9rem; }
-.mpesa-status { margin: 0.8rem 0 0; font-size: 0.9rem; min-height: 1.2em; }
-.mpesa-status[data-state="error"] { font-weight: 600; }
-.mpesa-status[data-state="success"] { font-weight: 700; }
-.card-pay-cta { width: 100%; margin-top: 0.5rem; }

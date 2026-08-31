@@ -9,7 +9,6 @@ const LOCATION_NAME = "Lower Kabete, Nairobi";
 const LOCATION_LAT = -1.2379275;
 const LOCATION_LNG = 36.7267739;
 const LOCATION_HOURS = "Open daily, 9:00 AM – 5:00 PM";
-const MPESA_API_BASE = ""; // Empty = same domain. Use your backend URL only if frontend and backend are hosted separately.
 /* ========================================================= */
 
 const MAPS_EMBED_URL = `https://www.google.com/maps?q=${LOCATION_LAT},${LOCATION_LNG}&z=15&output=embed`;
@@ -32,15 +31,6 @@ const WHATSAPP_GLYPH = `<svg viewBox="0 0 32 32"><path d="M16.02 3C9.4 3 4 8.4 4
 let allProducts = [];
 let activeCategory = "All";
 let searchTerm = "";
-const qtyMap = new Map(); // productId -> selected quantity
-
-function getQty(id) {
-  return qtyMap.get(String(id)) || 1;
-}
-
-function setQty(id, qty) {
-  qtyMap.set(String(id), Math.max(1, Math.floor(Number(qty) || 1)));
-}
 
 function waLink(text) {
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
@@ -50,12 +40,11 @@ function genericGreeting() {
   return `Hi ${STORE_NAME}! I'd like to know more about your seedlings.`;
 }
 
-function orderMessage(p, qty = 1) {
+function orderMessage(p) {
   if (p.price == null) {
-    return `Hi! I'd like to enquire about:\n\n${p.name}\nQuantity: ${qty}\n\nCould you let me know the price and availability?`;
+    return `Hi! I'd like to enquire about:\n\n${p.name}\n\nCould you let me know the price and availability?`;
   }
-  const lineTotal = p.price * qty;
-  return `Hi! I'd like to order:\n\n${p.name}\nQuantity: ${qty}\nPrice: Ksh ${p.price.toLocaleString()} each\nTotal: Ksh ${lineTotal.toLocaleString()}\n\nI'll pay via M-Pesa Paybill ${PAYBILL_BUSINESS}, Account ${PAYBILL_ACCOUNT} (${STORE_NAME}) — please confirm availability.`;
+  return `Hi! I'd like to order:\n\n${p.name}\nPrice: Ksh ${p.price.toLocaleString()}\n\nI'll pay via M-Pesa Paybill ${PAYBILL_BUSINESS}, Account ${PAYBILL_ACCOUNT} (${STORE_NAME}) — please confirm availability.`;
 }
 
 function escapeHtml(str) {
@@ -74,23 +63,16 @@ function priceHtml(p) {
 
 function cardHtml(p) {
   const ctaLabel = p.price == null ? "Enquire on WhatsApp" : "Order on WhatsApp";
-  const qty = getQty(p.id);
   return `
-    <article class="card" data-product-id="${p.id}">
+    <article class="card">
       <div class="card-media">${mediaHtml(p)}</div>
       <div class="card-body">
         <p class="card-category">${escapeHtml(p.category)}</p>
         <p class="card-name">${escapeHtml(p.name)}</p>
         ${priceHtml(p)}
-        <div class="qty-stepper" data-qty-stepper="${escapeHtml(p.id)}">
-          <button type="button" class="qty-btn" data-qty-step="minus" data-product-id="${escapeHtml(p.id)}" aria-label="Decrease quantity">−</button>
-          <span class="qty-value" data-qty-value="${escapeHtml(p.id)}">${qty}</span>
-          <button type="button" class="qty-btn" data-qty-step="plus" data-product-id="${escapeHtml(p.id)}" aria-label="Increase quantity">+</button>
-        </div>
-        <a class="btn btn-order card-cta" href="${waLink(orderMessage(p, qty))}" target="_blank" rel="noopener" data-product-id="${escapeHtml(p.id)}" data-role="order-link">
+        <a class="btn btn-order card-cta" href="${waLink(orderMessage(p))}" target="_blank" rel="noopener">
           ${WHATSAPP_GLYPH.replace('viewBox="0 0 32 32"', 'viewBox="0 0 32 32" width="16" height="16"')} ${ctaLabel}
         </a>
-        ${p.price != null ? `<button class="btn btn-secondary card-pay-cta" type="button" data-pay-product="${escapeHtml(p.name)}" data-pay-price="${p.price}" data-product-id="${escapeHtml(p.id)}">Pay via M-PESA</button>` : ""}
       </div>
     </article>
   `;
@@ -192,146 +174,6 @@ function wireCopyButtons() {
   });
 }
 
-function showMpesaPanel(productName = "", amount = "") {
-  const panel = document.getElementById("mpesaPaymentPanel");
-  const amountInput = document.getElementById("mpesaAmount");
-  const referenceInput = document.getElementById("mpesaReference");
-  if (!panel) return;
-  panel.hidden = false;
-  if (amountInput && amount) amountInput.value = amount;
-  if (referenceInput) {
-    const cleaned = String(productName || "FARMTEK09")
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, "")
-      .slice(0, 12) || "FARMTEK09";
-    referenceInput.value = cleaned;
-  }
-  panel.scrollIntoView({ behavior: "smooth", block: "center" });
-  document.getElementById("mpesaPhone")?.focus();
-}
-
-function setMpesaStatus(message, state = "") {
-  const el = document.getElementById("mpesaStatus");
-  if (!el) return;
-  el.textContent = message;
-  el.dataset.state = state;
-}
-
-async function startMpesaPayment() {
-  const phoneEl = document.getElementById("mpesaPhone");
-  const amountEl = document.getElementById("mpesaAmount");
-  const referenceEl = document.getElementById("mpesaReference");
-  const submitBtn = document.getElementById("mpesaSubmit");
-  if (!phoneEl || !amountEl || !referenceEl || !submitBtn) return;
-
-  const phone = phoneEl.value.trim();
-  const amount = Number(amountEl.value);
-  const accountReference = referenceEl.value.trim().toUpperCase();
-
-  if (!/^((07|01)\d{8}|254[17]\d{8}|\+254[17]\d{8})$/.test(phone.replace(/\s/g, ""))) {
-    setMpesaStatus("Enter a valid Kenyan M-PESA number, e.g. 0712345678.", "error");
-    phoneEl.focus();
-    return;
-  }
-  if (!Number.isInteger(amount) || amount < 1) {
-    setMpesaStatus("Enter a valid whole-number amount of at least KES 1.", "error");
-    amountEl.focus();
-    return;
-  }
-  if (!/^[A-Z0-9._ -]{1,12}$/.test(accountReference)) {
-    setMpesaStatus("Use up to 12 letters, numbers, spaces, dots, underscores or hyphens for the reference.", "error");
-    referenceEl.focus();
-    return;
-  }
-
-  submitBtn.disabled = true;
-  setMpesaStatus("Connecting to M-PESA…", "pending");
-
-  try {
-    const response = await fetch(`${MPESA_API_BASE}/api/mpesa/stk-push`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        phone,
-        amount,
-        accountReference,
-        transactionDesc: "FARMTEK09 payment"
-      })
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.ok) {
-      throw new Error(data.message || "Unable to start the M-PESA payment.");
-    }
-
-    setMpesaStatus("STK prompt sent. Check your phone and enter your M-PESA PIN.", "pending");
-    await pollMpesaStatus(data.checkoutRequestId);
-  } catch (error) {
-    console.error("M-PESA payment error:", error);
-    setMpesaStatus(error.message || "Payment could not be started.", "error");
-  } finally {
-    submitBtn.disabled = false;
-  }
-}
-
-async function pollMpesaStatus(checkoutRequestId) {
-  for (let attempt = 0; attempt < 15; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    const response = await fetch(`${MPESA_API_BASE}/api/mpesa/status/${encodeURIComponent(checkoutRequestId)}`);
-    if (!response.ok) continue;
-    const data = await response.json();
-    if (data.status === "success") {
-      setMpesaStatus(`Payment received. M-PESA receipt: ${data.receipt || "confirmed"}.`, "success");
-      return;
-    }
-    if (data.status === "failed") {
-      setMpesaStatus(`Payment was not completed: ${data.resultDesc || "transaction cancelled or failed"}.`, "error");
-      return;
-    }
-  }
-  setMpesaStatus("The prompt is still pending. Check your M-PESA messages; your payment will be confirmed after the Safaricom callback.", "pending");
-}
-
-function wireMpesa() {
-  document.getElementById("payNowButton")?.addEventListener("click", () => showMpesaPanel());
-  document.getElementById("mpesaSubmit")?.addEventListener("click", startMpesaPayment);
-  document.getElementById("mpesaPaymentPanel")?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && event.target.matches("input")) startMpesaPayment();
-  });
-  document.getElementById("productGrid")?.addEventListener("click", (event) => {
-    const payBtn = event.target.closest(".card-pay-cta");
-    if (payBtn) {
-      const qty = getQty(payBtn.dataset.productId);
-      const amount = Number(payBtn.dataset.payPrice) * qty;
-      showMpesaPanel(payBtn.dataset.payProduct, amount);
-      return;
-    }
-  });
-}
-
-function wireQtySteppers() {
-  document.getElementById("productGrid")?.addEventListener("click", (event) => {
-    const stepBtn = event.target.closest("[data-qty-step]");
-    if (!stepBtn) return;
-    event.preventDefault();
-
-    const id = stepBtn.dataset.productId;
-    const product = allProducts.find((p) => String(p.id) === String(id));
-    if (!product) return;
-
-    const current = getQty(id);
-    const next = stepBtn.dataset.qtyStep === "plus" ? current + 1 : Math.max(1, current - 1);
-    setQty(id, next);
-
-    const card = stepBtn.closest(".card");
-    const valueEl = card?.querySelector(`[data-qty-value="${CSS.escape(String(id))}"]`);
-    if (valueEl) valueEl.textContent = String(next);
-
-    const orderLink = card?.querySelector('[data-role="order-link"]');
-    if (orderLink) orderLink.href = waLink(orderMessage(product, next));
-  });
-}
-
 function wireControls() {
   document.getElementById("searchInput").addEventListener("input", (e) => {
     searchTerm = e.target.value;
@@ -348,41 +190,16 @@ function wireControls() {
 
 async function init() {
   applyBranding();
+  const res = await fetch("products.json");
+  allProducts = await res.json();
+  document.getElementById("floatingWhatsapp").innerHTML = WHATSAPP_GLYPH;
+  document.getElementById("topbarWhatsapp").innerHTML = `${WHATSAPP_GLYPH.replace('viewBox="0 0 32 32"', 'viewBox="0 0 32 32" width="16" height="16"')} 0725 528 888`;
   wireWhatsappLinks();
   wireCopyButtons();
+  buildCategoryPills();
+  buildShelf();
   wireControls();
-  wireMpesa();
-  wireQtySteppers();
-
-  const floatingWhatsapp = document.getElementById("floatingWhatsapp");
-  if (floatingWhatsapp) floatingWhatsapp.innerHTML = WHATSAPP_GLYPH;
-
-  const topbarWhatsapp = document.getElementById("topbarWhatsapp");
-  if (topbarWhatsapp) {
-    topbarWhatsapp.innerHTML = `${WHATSAPP_GLYPH.replace('viewBox="0 0 32 32"', 'viewBox="0 0 32 32" width="16" height="16"')} 0725 528 888`;
-  }
-
-  try {
-    const res = await fetch("products.json");
-    if (!res.ok) throw new Error(`Could not load products.json (${res.status})`);
-
-    const data = await res.json();
-    if (!Array.isArray(data)) throw new Error("products.json must contain a JSON array");
-
-    allProducts = data;
-    buildCategoryPills();
-    buildShelf();
-    render();
-  } catch (error) {
-    console.error("Storefront failed to load:", error);
-    const grid = document.getElementById("productGrid");
-    const resultCount = document.getElementById("resultCount");
-    if (grid) {
-      grid.hidden = false;
-      grid.innerHTML = '<p class="load-error">Products could not be loaded. Please refresh the page or contact us on WhatsApp.</p>';
-    }
-    if (resultCount) resultCount.textContent = "Catalogue unavailable";
-  }
+  render();
 }
 
 init();

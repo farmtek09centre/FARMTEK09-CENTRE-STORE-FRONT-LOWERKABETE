@@ -1,110 +1,118 @@
-# FARMTEK09 CENTRE — WhatsApp + Lipa na M-PESA (Daraja STK Push)
+# FARMTEK09 CENTRE — WhatsApp Storefront
 
-This version has **no shopping cart**. Customers can order through WhatsApp and, where a price is known, start a **Lipa na M-PESA PayBill STK Push** directly from the website.
+A plain HTML/CSS/JS storefront (no build step) for your seedlings: a
+categorised grid, WhatsApp ordering, your nursery's location with an
+embedded map, and M-Pesa Pay Bill details for Co-operative Bank. Free to
+host on GitHub Pages.
 
-## Daraja endpoint integrated
+## What's in here
 
-The supplied Safaricom Postman collection confirms the sandbox STK Push request as:
-
-```text
-POST https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest
+```
+index.html      the page
+styles.css      all styling (green/nursery theme)
+app.js          config, rendering, WhatsApp + M-Pesa + map logic
+products.json   your 18 seedlings (edit this to update anything)
+README.md       this file
 ```
 
-It uses Bearer authentication and the fields `BusinessShortCode`, `Password`, `Timestamp`, `TransactionType`, `Amount`, `PartyA`, `PartyB`, `PhoneNumber`, `CallBackURL`, `AccountReference`, and `TransactionDesc`. The supplied collection uses `CustomerPayBillOnline` as the transaction type example and `174379` as the sandbox shortcode example. fileciteturn0file0L1696-L1724
+## About the product list
 
-## What is included
+Your uploaded `web-farmtek09-centre-farmtek.zip` had 10 draft category pages
+(Grand Nain, Williams, FHIA-17, Cavendish, Lemon, Tangerine, Apple, Grape,
+Mango, Avocado) with placeholder Wikipedia photos and no prices. Separately,
+your Farmtek09 Centre listing on omnistore-ke.vercel.app had 14 real,
+priced, photographed items. This site merges both:
 
-- M-PESA payment form in the Pay via M-Pesa section.
-- Product-level **Pay via M-PESA** buttons for priced products.
-- Kenyan phone-number validation.
-- Daraja OAuth access-token generation.
-- Daraja sandbox STK Push integration.
-- Safaricom callback endpoint.
-- Payment-status polling for the customer.
-- M-PESA credentials kept on the server, not browser JavaScript.
-- No shopping cart.
+- **14 items carried over with their real photo and real price** (Ksh 150,
+  or Ksh 300 for the two Plantain listings) — all the bananas, both mangoes,
+  the avocado, and the tangerine.
+- **4 items from your draft that aren't in the priced catalogue yet** —
+  FHIA-17, Apple, Grape, Lemon. These keep the placeholder photo from your
+  draft and show **"Price on request"** rather than a made-up number, so
+  customers enquire on WhatsApp instead of seeing a wrong price.
+- One unnamed "X" item (Ksh 200, no description) from the Omnistore listing
+  was left out — it didn't have enough information to show a customer.
 
-## Important: sandbox shortcode vs business PayBill
+Once you have real prices/photos for FHIA-17, Apple, Grape or Lemon, add
+them in `products.json` the same way as any other item (see below).
 
-Your storefront currently displays **400200 / 54095** as the manual PayBill details. That does not automatically mean the Daraja sandbox STK Push should use 400200. The Daraja collection supplied with this project uses **174379** as its example sandbox STK shortcode. Configure `MPESA_SHORTCODE` to the shortcode assigned to your own Daraja app.
+## 1. Put it on GitHub Pages (~5 minutes)
 
-The website can continue displaying your normal customer-facing PayBill details while the backend uses the correct shortcode for the Daraja environment. Before production, confirm the shortcode and settlement setup with Safaricom/the acquiring institution.
+1. Create a new **public** repository on github.com (e.g. `farmtek09-store`
+   — you've already got `farmtek09centre`, `farmtek09website` and
+   `web-farmtek09-centre`, so pick a name that doesn't collide).
+2. **Add file → Upload files**, drag in all 4 files from this package, commit.
+3. **Settings → Pages** → Source: `Deploy from a branch` → branch `main` →
+   folder `/ (root)` → Save.
+4. Your live URL appears on that same screen a minute or two later —
+   `https://kabete2349.github.io/farmtek09-store/` (or whatever you named it).
 
-## 1. Configure Daraja
+## 2. Your business settings, all in one place
 
-Create/select your Daraja application and obtain:
-
-- Consumer Key
-- Consumer Secret
-- Lipa na M-PESA Online Passkey
-
-The official Safaricom Daraja portal provides the API platform and app onboarding. citeturn134817search0turn134817search3
-
-## 2. Configure `.env`
-
-Copy `.env.example` to `.env` and fill the values:
-
-```env
-MPESA_CONSUMER_KEY=s6CR0XNEvhFd8BJqDGMV0KSagm4GlMV2nco7xyLjo4ixwYGn
-MPESA_CONSUMER_SECRET=zeSmJ3oAvthBeT2WlRUyyF2mVGHmMhd4LZDpf18U6oRLa1enjGH3BayiKljuKNWK
-MPESA_PASSKEY=N/A
-MPESA_ENV=sandbox
-MPESA_SHORTCODE=174379
-MPESA_CALLBACK_BASE_URL=https://your-public-https-backend.example.com
-FRONTEND_ORIGIN=http://localhost:3000
-PORT=3000
-```
-
-> ⚠️ **Security note:** an earlier version of this README had real-looking Daraja consumer key/secret values committed in plain text. Never commit real `.env` values to a public GitHub repo — anyone can read your commit history. If those values were real, go to the [Daraja portal](https://developer.safaricom.co.ke/), regenerate that app's Consumer Key/Secret, and only ever put real credentials in your local `.env` file (which `.gitignore` already excludes) or in your host's environment-variable settings.
-
-Do **not** commit `.env` to GitHub.
-
-## 3. Run
-
-Requires Node.js 20+.
-
-```bash
-npm install
-npm start
-```
-
-Open:
-
-```text
-http://localhost:3000
-```
-
-## 4. Callback requirement
-
-The callback is:
-
-```text
-POST https://YOUR-PUBLIC-HTTPS-BACKEND.example.com/api/mpesa/callback
-```
-
-Safaricom needs to reach this URL over the public internet. A localhost URL will not receive the callback.
-
-## 5. Frontend/backend on separate hosts
-
-If your website is hosted separately from the Node backend, set this in `app.js`:
-
+At the top of `app.js`:
 ```js
-const MPESA_API_BASE = "https://api.yourdomain.co.ke";
+const STORE_NAME = "FARMTEK09 CENTRE";
+const WHATSAPP_NUMBER = "254725528888";
+const PAYBILL_BUSINESS = "400200";
+const PAYBILL_ACCOUNT = "54095";
+const LOCATION_NAME = "Lower Kabete, Nairobi";
+const LOCATION_LAT = -1.2379275;
+const LOCATION_LNG = 36.7267739;
+const LOCATION_HOURS = "Open daily, 9:00 AM – 5:00 PM";
 ```
+Everything on the site (header, footer, map, payment panel, WhatsApp
+messages) is driven from these lines — change once, updates everywhere.
+Hours came from your Google Business listing; adjust if they're off.
 
-Then set `FRONTEND_ORIGIN` in the backend `.env` to the actual website origin.
+## 3. About the M-Pesa Pay Bill panel
 
-## 6. Payment flow
+Same honest approach as before: this is a static site, so it can't trigger
+an automatic charge (that needs a Safaricom Daraja API account and a
+backend to hold the secret keys). What's built is the real Pay Bill flow:
 
-1. Customer clicks **Pay via M-PESA**.
-2. Customer enters their M-PESA number and amount.
-3. Browser sends the details to `/api/mpesa/stk-push`.
-4. Backend gets an OAuth token from Daraja.
-5. Backend POSTs the STK request to the Safaricom sandbox endpoint.
-6. Customer receives the STK prompt and enters their PIN.
-7. Safaricom calls `/api/mpesa/callback`.
-8. Website polls the transaction status endpoint and displays success/failure.
+- A **"Pay via M-Pesa"** card showing Business No. 400200 and Account No.
+  54095, each with a copy button.
+- Every WhatsApp order message already includes both numbers, so the
+  customer knows to pay Lipa na M-Pesa → Pay Bill → 400200 → 54095, then
+  send the confirmation.
 
-## Production
+Nothing is auto-charged — you confirm the same way you already do, just
+with the numbers already in front of every customer.
 
-Use production Daraja credentials and the production endpoint only after your Daraja application is approved/go-live. Replace the in-memory transaction store with a database before relying on it for real order records.
+## 4. About the location panel
+
+The map embed and "Get Directions" button use the exact coordinates from
+the Google Maps link you sent (-1.2379275, 36.7267739) — no API key
+needed, so nothing to configure. If the pin is ever slightly off, update
+`LOCATION_LAT` / `LOCATION_LNG` in `app.js`.
+
+## Editing `products.json`
+
+Each product looks like this:
+```json
+{
+  "id": "hass-grafted-avocado",
+  "name": "Hass Grafted Avocado",
+  "category": "Avocados",
+  "price": 150,
+  "blurb": "Grafted Hass avocado — the variety most sought after for export markets.",
+  "image": "https://..."
+}
+```
+- **name / price / blurb** — edit freely.
+- **category** — must match one of: Bananas & Plantains, Mangoes,
+  Avocados, Tangerines, Apples, Grapes, Lemons (or add a new one — it'll
+  get its own filter pill automatically).
+- **image** — currently points at your Omnistore product photos and, for
+  the 4 gap items, Wikipedia stock photos. Both are hotlinked (not saved
+  into this package), so if you ever close the Omnistore account, swap
+  those 14 image URLs for direct links to your own hosted photos to avoid
+  broken images. Set `"price": null` instead of a number to show "Price on
+  request".
+
+## Testing locally before you push
+
+```
+python3 -m http.server 8000
+```
+then open `http://localhost:8000`.
