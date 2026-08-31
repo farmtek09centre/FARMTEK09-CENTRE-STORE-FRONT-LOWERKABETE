@@ -45,9 +45,9 @@ The official Safaricom Daraja portal provides the API platform and app onboardin
 Copy `.env.example` to `.env` and fill the values:
 
 ```env
-MPESA_CONSUMER_KEY=your_consumer_key
-MPESA_CONSUMER_SECRET=your_consumer_secret
-MPESA_PASSKEY=your_passkey
+MPESA_CONSUMER_KEY=s6CR0XNEvhFd8BJqDGMV0KSagm4GlMV2nco7xyLjo4ixwYGn
+MPESA_CONSUMER_SECRET=zeSmJ3oAvthBeT2WlRUyyF2mVGHmMhd4LZDpf18U6oRLa1enjGH3BayiKljuKNWK
+MPESA_PASSKEY=N/A
 MPESA_ENV=sandbox
 MPESA_SHORTCODE=174379
 MPESA_CALLBACK_BASE_URL=https://your-public-https-backend.example.com
