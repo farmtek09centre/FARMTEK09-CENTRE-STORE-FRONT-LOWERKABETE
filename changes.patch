@@ -1,0 +1,151 @@
+diff --git a/README.md b/README.md
+index 3ca8e53..4bd8bbb 100644
+--- a/README.md
++++ b/README.md
+@@ -45,8 +45,8 @@ The official Safaricom Daraja portal provides the API platform and app onboardin
+ Copy `.env.example` to `.env` and fill the values:
+ 
+ ```env
+-MPESA_CONSUMER_KEY=s6CR0XNEvhFd8BJqDGMV0KSagm4GlMV2nco7xyLjo4ixwYGn
+-MPESA_CONSUMER_SECRET=zeSmJ3oAvthBeT2WlRUyyF2mVGHmMhd4LZDpf18U6oRLa1enjGH3BayiKljuKNWK
++MPESA_CONSUMER_KEY=your_consumer_key
++MPESA_CONSUMER_SECRET=your_consumer_secret
+ MPESA_PASSKEY=your_passkey
+ MPESA_ENV=sandbox
+ MPESA_SHORTCODE=174379
+@@ -55,6 +55,8 @@ FRONTEND_ORIGIN=http://localhost:3000
+ PORT=3000
+ ```
+ 
++> ⚠️ **Security note:** an earlier version of this README had real-looking Daraja consumer key/secret values committed in plain text. Never commit real `.env` values to a public GitHub repo — anyone can read your commit history. If those values were real, go to the [Daraja portal](https://developer.safaricom.co.ke/), regenerate that app's Consumer Key/Secret, and only ever put real credentials in your local `.env` file (which `.gitignore` already excludes) or in your host's environment-variable settings.
++
+ Do **not** commit `.env` to GitHub.
+ 
+ ## 3. Run
+diff --git a/app.js b/app.js
+index bf41862..f406a50 100644
+--- a/app.js
++++ b/app.js
+@@ -32,6 +32,15 @@ const WHATSAPP_GLYPH = `<svg viewBox="0 0 32 32"><path d="M16.02 3C9.4 3 4 8.4 4
+ let allProducts = [];
+ let activeCategory = "All";
+ let searchTerm = "";
++const qtyMap = new Map(); // productId -> selected quantity
++
++function getQty(id) {
++  return qtyMap.get(String(id)) || 1;
++}
++
++function setQty(id, qty) {
++  qtyMap.set(String(id), Math.max(1, Math.floor(Number(qty) || 1)));
++}
+ 
+ function waLink(text) {
+   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+@@ -41,11 +50,12 @@ function genericGreeting() {
+   return `Hi ${STORE_NAME}! I'd like to know more about your seedlings.`;
+ }
+ 
+-function orderMessage(p) {
++function orderMessage(p, qty = 1) {
+   if (p.price == null) {
+-    return `Hi! I'd like to enquire about:\n\n${p.name}\n\nCould you let me know the price and availability?`;
++    return `Hi! I'd like to enquire about:\n\n${p.name}\nQuantity: ${qty}\n\nCould you let me know the price and availability?`;
+   }
+-  return `Hi! I'd like to order:\n\n${p.name}\nPrice: Ksh ${p.price.toLocaleString()}\n\nI'll pay via M-Pesa Paybill ${PAYBILL_BUSINESS}, Account ${PAYBILL_ACCOUNT} (${STORE_NAME}) — please confirm availability.`;
++  const lineTotal = p.price * qty;
++  return `Hi! I'd like to order:\n\n${p.name}\nQuantity: ${qty}\nPrice: Ksh ${p.price.toLocaleString()} each\nTotal: Ksh ${lineTotal.toLocaleString()}\n\nI'll pay via M-Pesa Paybill ${PAYBILL_BUSINESS}, Account ${PAYBILL_ACCOUNT} (${STORE_NAME}) — please confirm availability.`;
+ }
+ 
+ function escapeHtml(str) {
+@@ -64,6 +74,7 @@ function priceHtml(p) {
+ 
+ function cardHtml(p) {
+   const ctaLabel = p.price == null ? "Enquire on WhatsApp" : "Order on WhatsApp";
++  const qty = getQty(p.id);
+   return `
+     <article class="card" data-product-id="${p.id}">
+       <div class="card-media">${mediaHtml(p)}</div>
+@@ -71,10 +82,15 @@ function cardHtml(p) {
+         <p class="card-category">${escapeHtml(p.category)}</p>
+         <p class="card-name">${escapeHtml(p.name)}</p>
+         ${priceHtml(p)}
+-        <a class="btn btn-order card-cta" href="${waLink(orderMessage(p))}" target="_blank" rel="noopener">
++        <div class="qty-stepper" data-qty-stepper="${escapeHtml(p.id)}">
++          <button type="button" class="qty-btn" data-qty-step="minus" data-product-id="${escapeHtml(p.id)}" aria-label="Decrease quantity">−</button>
++          <span class="qty-value" data-qty-value="${escapeHtml(p.id)}">${qty}</span>
++          <button type="button" class="qty-btn" data-qty-step="plus" data-product-id="${escapeHtml(p.id)}" aria-label="Increase quantity">+</button>
++        </div>
++        <a class="btn btn-order card-cta" href="${waLink(orderMessage(p, qty))}" target="_blank" rel="noopener" data-product-id="${escapeHtml(p.id)}" data-role="order-link">
+           ${WHATSAPP_GLYPH.replace('viewBox="0 0 32 32"', 'viewBox="0 0 32 32" width="16" height="16"')} ${ctaLabel}
+         </a>
+-        ${p.price != null ? `<button class="btn btn-secondary card-pay-cta" type="button" data-pay-product="${escapeHtml(p.name)}" data-pay-amount="${p.price}">Pay via M-PESA</button>` : ""}
++        ${p.price != null ? `<button class="btn btn-secondary card-pay-cta" type="button" data-pay-product="${escapeHtml(p.name)}" data-pay-price="${p.price}" data-product-id="${escapeHtml(p.id)}">Pay via M-PESA</button>` : ""}
+       </div>
+     </article>
+   `;
+@@ -283,9 +299,36 @@ function wireMpesa() {
+     if (event.key === "Enter" && event.target.matches("input")) startMpesaPayment();
+   });
+   document.getElementById("productGrid")?.addEventListener("click", (event) => {
+-    const btn = event.target.closest(".card-pay-cta");
+-    if (!btn) return;
+-    showMpesaPanel(btn.dataset.payProduct, btn.dataset.payAmount);
++    const payBtn = event.target.closest(".card-pay-cta");
++    if (payBtn) {
++      const qty = getQty(payBtn.dataset.productId);
++      const amount = Number(payBtn.dataset.payPrice) * qty;
++      showMpesaPanel(payBtn.dataset.payProduct, amount);
++      return;
++    }
++  });
++}
++
++function wireQtySteppers() {
++  document.getElementById("productGrid")?.addEventListener("click", (event) => {
++    const stepBtn = event.target.closest("[data-qty-step]");
++    if (!stepBtn) return;
++    event.preventDefault();
++
++    const id = stepBtn.dataset.productId;
++    const product = allProducts.find((p) => String(p.id) === String(id));
++    if (!product) return;
++
++    const current = getQty(id);
++    const next = stepBtn.dataset.qtyStep === "plus" ? current + 1 : Math.max(1, current - 1);
++    setQty(id, next);
++
++    const card = stepBtn.closest(".card");
++    const valueEl = card?.querySelector(`[data-qty-value="${CSS.escape(String(id))}"]`);
++    if (valueEl) valueEl.textContent = String(next);
++
++    const orderLink = card?.querySelector('[data-role="order-link"]');
++    if (orderLink) orderLink.href = waLink(orderMessage(product, next));
+   });
+ }
+ 
+@@ -309,6 +352,7 @@ async function init() {
+   wireCopyButtons();
+   wireControls();
+   wireMpesa();
++  wireQtySteppers();
+ 
+   const floatingWhatsapp = document.getElementById("floatingWhatsapp");
+   if (floatingWhatsapp) floatingWhatsapp.innerHTML = WHATSAPP_GLYPH;
+diff --git a/styles.css b/styles.css
+index 1b6cc64..b60b14f 100644
+--- a/styles.css
++++ b/styles.css
+@@ -241,6 +241,12 @@ h1, h2, h3 {
+ .card-price.on-request { font-size: 0.82rem; font-weight: 600; color: var(--ink-500); font-style: italic; }
+ .card-cta { margin-top: 0.35rem; width: 100%; padding: 0.6rem 0.75rem; font-size: 0.82rem; }
+ 
++.qty-stepper { display: grid; grid-template-columns: 34px 1fr 34px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; margin-top: 0.15rem; }
++.qty-btn { height: 34px; border: 0; background: var(--mist-50); color: var(--forest-950); font-size: 1.05rem; font-weight: 800; cursor: pointer; }
++.qty-btn:hover { background: var(--line); }
++.qty-btn:active { background: var(--amber-100); }
++.qty-value { text-align: center; font-weight: 700; color: var(--ink-900); font-size: 0.9rem; }
++
+ /* =========================================================
+    Empty state
+    ========================================================= */
